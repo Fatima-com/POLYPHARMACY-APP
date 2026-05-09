@@ -4,7 +4,7 @@ from groq import Groq
 import reflex as rx
 import asyncio
 
-# 1. SETUP & CONFIGURATION
+# 1. SETUP
 load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 client = Groq(api_key=GROQ_API_KEY)
@@ -13,33 +13,30 @@ SQUIRCLE = "35px"
 TIMES = "Times New Roman, serif"
 
 class State(rx.State):
-    # --- DATA STORAGE ---
+    # DATA STORAGE
     pills: list[dict[str, str]] = [{"name": "", "dose": "", "time": ""}]
     pill_analysis_results: dict[str, str] = {}
     summary_text: str = ""
 
-    # FIX 1: Store AI-generated content for the 3 main flashcards
     card_good: str = ""
     card_bad: str = ""
     card_precaution: str = ""
 
-    # --- UI CONTROL STATES ---
+    #UI CONTROL
     is_loading: bool = False
     is_analyzed: bool = False
     show_summary: bool = False
     is_feeling_off: bool = False
     show_symptom_result: bool = False
 
-    # --- SYMPTOM TRACKING ---
     flipped_cards: dict[str, bool] = {}
     custom_symptom: str = ""
     symptom_analysis: str = ""
 
-    # FIX 3: Track selected preset symptom + dynamic symptom buttons
     selected_symptom: str = ""
     extra_symptoms: list[str] = []
 
-    # --- CORE LOGIC FUNCTIONS ---
+    # LOGIC FUNCTIONS
     def set_custom_symptom(self, val: str):
         self.custom_symptom = val
 
@@ -53,18 +50,18 @@ class State(rx.State):
     def toggle_flip(self, card_id: str):
         self.flipped_cards[card_id] = not self.flipped_cards.get(card_id, False)
 
-    # FIX 3: Select a symptom button (highlights it)
+    
     def select_symptom(self, name: str):
         self.selected_symptom = name
 
-    # FIX 3: Add custom symptom as a new button
+    
     def add_custom_symptom_button(self):
         if self.custom_symptom and self.custom_symptom not in self.extra_symptoms:
             self.extra_symptoms.append(self.custom_symptom)
             self.selected_symptom = self.custom_symptom
             self.custom_symptom = ""
 
-    # --- AI WORKFLOW 1: INITIAL ANALYSIS ---
+    # INITIAL ANALYSIS
     async def start_transition(self):
         self.is_loading = True
         yield
@@ -87,7 +84,7 @@ class State(rx.State):
             raw = completion.choices[0].message.content
             self.summary_text = raw
 
-            # FIX 1: Parse the AI response to extract GOOD/BAD/PRECAUTION
+            #AI EXTRACTION
             lines = raw.split("\n")
             for line in lines:
                 line = line.strip()
@@ -98,7 +95,7 @@ class State(rx.State):
                 elif line.startswith("PRECAUTION:"):
                     self.card_precaution = line[11:].strip()
 
-            # FIX 1: Per-pill analysis via AI
+            # PILL ANALYSIS
             for p in self.pills:
                 if p['name']:
                     pill_prompt = f"In 2 sentences, describe the key monitoring advice and common side effects for {p['name']} ({p['dose']}) taken at {p['time']}."
@@ -118,7 +115,7 @@ class State(rx.State):
         self.is_analyzed = True
         self.is_loading = False
 
-    # --- AI WORKFLOW 2: SYMPTOM CHECKER ---
+    #HOW DO YOU FEEL?
     async def analyze_symptom(self, symptom_name: str):
         # Use selected_symptom if no explicit name passed
         target = symptom_name if symptom_name else self.selected_symptom
@@ -154,7 +151,7 @@ class State(rx.State):
         self.show_summary = True
         self.is_loading = False
 
-    # --- NAVIGATION ---
+    # TRIGGER!!
     def trigger_summary_view(self):
         self.show_summary = True
 
@@ -163,16 +160,16 @@ class State(rx.State):
         self.selected_symptom = ""
         self.show_symptom_result = False
 
-    # FIX 2: Copy button — uses rx.set_clipboard
+    
     def copy_to_clipboard(self):
         return [rx.set_clipboard(self.summary_text), rx.toast("Copied to clipboard!", position="bottom-right")]
     
     def save_as_pdf(self):
         return rx.download(data=self.summary_text, filename="Medical_Summary.txt")
     
-    # FIX 4: Restart goes back to main input screen
+    
     def start_over(self):
-        """Manually resets all variables and redirects home."""
+        """MANUAL RESET"""
         self.pills = [{"name": "", "dose": "", "time": ""}]
         self.pill_analysis_results = {}
         self.summary_text = ""
@@ -187,7 +184,7 @@ class State(rx.State):
         return rx.redirect("/")
 
 
-# --- REUSABLE COMPONENTS ---
+#COMPONENTS
 def flipping_card(title, front_icon, details, card_id):
     is_flipped = State.flipped_cards.get(card_id, False)
     return rx.box(
@@ -200,7 +197,7 @@ def flipping_card(title, front_icon, details, card_id):
                 width="100%", height="100%", bg="white", border="2px solid magenta",
                 border_radius=SQUIRCLE, justify="center", align="center",
             ),
-            # BACK — FIX 1: details now contains AI text, scroll area ensures it fits
+            # BACK 
             rx.vstack(
                 rx.scroll_area(
                     rx.text(
@@ -223,7 +220,7 @@ def flipping_card(title, front_icon, details, card_id):
                 justify="center",
                 align="center",
                 transform="rotateY(180deg)",
-                overflow="hidden",  # FIX 3: prevents overflow
+                overflow="hidden", 
             ),
             transform_style="preserve-3d",
             transition="transform 0.6s",
@@ -237,7 +234,7 @@ def flipping_card(title, front_icon, details, card_id):
     )
 
 
-# --- VIEW 1: INPUT ---
+# VIEW INPUT 
 def input_view():
     return rx.center(
         rx.vstack(
@@ -253,7 +250,7 @@ def input_view():
                 on_click=State.start_transition,
                 bg="magenta", color="white", border_radius=SQUIRCLE, width="250px", size="4"
             ),
-            # FIX 5: Disclaimer below the analyze button
+            #DISCLAIMER
             rx.box(
                 rx.hstack(
                     rx.text("⚠️", font_size="1.1em"),
@@ -284,13 +281,13 @@ def input_view():
     )
 
 
-# --- VIEW 2: RESULTS ---
+#VIEW RESULTS
 def results_view():
     return rx.center(
         rx.vstack(
             rx.heading("ANALYSIS RESULTS", color="magenta", font_family=TIMES),
             rx.hstack(
-                # FIX 1: Pass AI-generated card content
+                
                 flipping_card("Good","✅", State.card_good, "good"),
                 flipping_card("Bad","❌", State.card_bad, "bad"),
                 flipping_card("Precaution","⚠️", State.card_precaution, "pre"),
@@ -304,7 +301,7 @@ def results_view():
                         flipping_card(
                             p["name"],
                             "💊",
-                            # FIX 1: Use dict .get with default so it never crashes
+                            
                             State.pill_analysis_results.get(p["name"], "Flip to see analysis."),
                             f"p{i}",
                         )
@@ -329,14 +326,14 @@ def results_view():
     )
 
 
-# --- VIEW 3: SUMMARY & FEEL OFF ---
+# VIEW SUMMARY
 def summary_view():
     return rx.center(
         rx.vstack(
-            # FIX 2: Summary box — content stays inside, buttons aligned properly
+            
             rx.box(
                 rx.hstack(
-                    # FIX 2: Working copy button
+                    
                     rx.button(
                         "A TEXT COPY SAVE",
                         on_click=State.copy_to_clipboard,
@@ -345,7 +342,7 @@ def summary_view():
                         cursor="pointer",
                     ),
                     rx.spacer(),
-                    # FIX 2: Save as PDF — triggers browser print dialog (works natively)
+                    
                     rx.button(
                         "A PDF SAVE",
                         on_click=State.save_as_pdf,
@@ -358,7 +355,7 @@ def summary_view():
                     padding_top="3",
                 ),
                 rx.divider(border_color="magenta", margin_y="2"),
-                # FIX 2: scroll_area keeps text inside the box
+                
                 rx.scroll_area(
                     rx.text(
                         State.summary_text,
@@ -375,7 +372,7 @@ def summary_view():
                 border="3px solid magenta",
                 border_radius=SQUIRCLE,
                 width="700px",
-                overflow="hidden",  # FIX 2: ensures nothing bleeds out
+                overflow="hidden",  
             ),
 
             rx.button(
@@ -384,7 +381,7 @@ def summary_view():
                 bg="magenta", color="white", border_radius=SQUIRCLE, size="4"
             ),
 
-            # FIX 4: "Start Over" button — takes user back to input screen
+            
             rx.button(
                 "Another Analysis",
                 on_click=State.start_over,
@@ -396,15 +393,15 @@ def summary_view():
                 width="200px",
             ),
 
-            # THE OVERLAY — FIX 3: layout fixed
+            # THE OVERLAY
             rx.cond(
                 State.is_feeling_off,
                 rx.center(
                     rx.vstack(
-                        # FIX 3: Heading is inside the box now (part of vstack inside the styled box)
+                        
                         rx.heading("How do you feel?", color="magenta", size="6"),
 
-                        # Preset symptom buttons with highlight
+                        
                         rx.hstack(
                             rx.button(
                                 "Headache",
@@ -427,7 +424,7 @@ def summary_view():
                             spacing="2",
                         ),
 
-                        # FIX 3: Dynamic extra symptom buttons (same style as preset)
+                        
                         rx.flex(
                             rx.foreach(
                                 State.extra_symptoms,
@@ -445,7 +442,7 @@ def summary_view():
                             justify="center",
                         ),
 
-                        # FIX 3: Custom symptom input + add button
+                        
                         rx.hstack(
                             rx.input(
                                 placeholder="Other symptom...",
@@ -466,7 +463,7 @@ def summary_view():
                             width="100%",
                         ),
 
-                        # FIX 3: Analyze button inside the box
+                        
                         rx.button(
                             "Analyze",
                             on_click=lambda: State.analyze_symptom(""),
@@ -476,7 +473,7 @@ def summary_view():
                             width="150px",
                         ),
 
-                        # FIX 3: Result card — text stays inside squircle
+                        
                         rx.cond(
                             State.show_symptom_result,
                             rx.vstack(
@@ -540,7 +537,7 @@ def summary_view():
     )
 
 
-# --- THE NAVIGATION ENGINE ---
+#NAVIGATION ENGINE
 def index() -> rx.Component:
     return rx.box(
         rx.cond(
